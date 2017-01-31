@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
     private StringBuilder mFormatBuilder;
     private Formatter mFormatter;
 
-    private boolean bAutoplay=true;
+    private boolean bAutoplay=false;
     private boolean bIsPlaying=false;
     private boolean bControlsActive=true;
     private int RENDERER_COUNT = 300000;
@@ -73,15 +73,17 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        // Hide the status bar.
+        View decorView = getWindow().getDecorView();
+        int uiOptions = View.SYSTEM_UI_FLAG_FULLSCREEN;
+        decorView.setSystemUiVisibility(uiOptions);
 
         setContentView(R.layout.video_player_layout);
         surfaceView = (SurfaceView) findViewById(R.id.sv_player);
         mediaController = (LinearLayout) findViewById(R.id.lin_media_controller);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        initPlayer(3000);
+        initPlayer(0);
 
         if(bAutoplay){
             if(exoPlayer!=null){
@@ -316,8 +318,7 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             System.out.println("xxx: Message: " + msg);
             if (msg.contains("seek")) {
-                // TODO: validate input and  seek ranges
-                exoPlayer.seekTo(Integer.parseInt(msg.split(":")[1])*1000);
+                exoPlayer.seekTo(Integer.parseInt(msg.split(":")[1]));
             }
 
             else if (msg.contains("play")) {
@@ -336,3 +337,5 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
+
+// TODO: validate input and  seek ranges + handle onPause and activity resume
