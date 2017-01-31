@@ -1,9 +1,7 @@
 package io.github.varunj.sangoshthi_receiver;
 
-import android.app.ActionBar;
 import android.media.MediaCodec;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -137,7 +135,8 @@ public class MainActivity extends AppCompatActivity {
                     // We're not interested in programmatically generated changes to the progress bar's position.
                     return;
                 }
-                exoPlayer.seekTo(progress*1000);
+                // set not interactive
+//                exoPlayer.seekTo(progress*1000);
             }
 
             @Override
@@ -317,19 +316,21 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             System.out.println("xxx: Message: " + msg);
             if (msg.contains("seek")) {
+                // TODO: validate input and  seek ranges
                 exoPlayer.seekTo(Integer.parseInt(msg.split(":")[1])*1000);
             }
 
-            else if (msg.contains("play") || msg.contains("pause"))
-            {
-                if(bIsPlaying){
-                    exoPlayer.setPlayWhenReady(false);
-                    bIsPlaying=false;
-                }
-                else {
+            else if (msg.contains("play")) {
+                if(!bIsPlaying){
                     exoPlayer.setPlayWhenReady(true);
                     bIsPlaying=true;
                     setProgress();
+                }
+            }
+            else if (msg.contains("pause")) {
+                if(bIsPlaying){
+                    exoPlayer.setPlayWhenReady(false);
+                    bIsPlaying=false;
                 }
             }
         }

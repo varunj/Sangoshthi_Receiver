@@ -7,7 +7,8 @@ python .\server.py pause
 python .\server.py seek:1
 '''
 
-devicesList = ['10.0.0.3', '10.0.0.6']
+# devicesList = ['10.0.0.3', '10.0.0.6']
+devicesList = ['192.168.164.169']
 TCP_PORT = 6000
 BUFFER_SIZE = 1024
 MESSAGE = sys.argv[1]
