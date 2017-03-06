@@ -1,4 +1,4 @@
-package io.github.varunj.sangoshthi_receiver;
+package io.github.varunj.sangoshthi_broadcaster;
 
 /**
  * Created by Varun on 04-03-2017.

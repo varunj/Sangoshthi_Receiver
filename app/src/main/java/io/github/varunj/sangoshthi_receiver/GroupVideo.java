@@ -23,6 +23,8 @@ import java.util.Date;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 
+import io.github.varunj.sangoshthi_broadcaster.Message;
+
 /**
  * Created by Varun on 04-03-2017.
  */
