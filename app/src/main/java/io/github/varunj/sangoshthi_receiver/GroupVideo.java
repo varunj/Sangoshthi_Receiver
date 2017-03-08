@@ -2,14 +2,33 @@ package io.github.varunj.sangoshthi_receiver;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.MediaCodec;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
+import android.view.SurfaceView;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.SeekBar;
+import android.widget.TextView;
 
+import com.google.android.exoplayer.ExoPlayer;
+import com.google.android.exoplayer.MediaCodecAudioTrackRenderer;
+import com.google.android.exoplayer.MediaCodecSelector;
+import com.google.android.exoplayer.MediaCodecVideoTrackRenderer;
+import com.google.android.exoplayer.extractor.ExtractorSampleSource;
+import com.google.android.exoplayer.upstream.Allocator;
+import com.google.android.exoplayer.upstream.DataSource;
+import com.google.android.exoplayer.upstream.DefaultAllocator;
+import com.google.android.exoplayer.upstream.DefaultUriDataSource;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -18,8 +37,16 @@ import com.rabbitmq.client.QueueingConsumer;
 
 import org.apache.commons.lang3.SerializationUtils;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.text.DateFormat;
 import java.util.Date;
+import java.util.Formatter;
+import java.util.Locale;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 
@@ -37,12 +64,36 @@ public class GroupVideo extends AppCompatActivity {
     Thread subscribeThread;
     Thread publishThread;
 
+    private SurfaceView surfaceView;
+    private SeekBar seekPlayerProgress;
+    private TextView txtCurrentTime;
+    private TextView txtEndTime;
+    private ImageButton btnLike;
+    private ImageButton btnQuery;
+    private LinearLayout mediaController;
+    private ExoPlayer exoPlayer;
+    private Handler handler;
+    private StringBuilder mFormatBuilder;
+    private Formatter mFormatter;
+    private boolean bAutoplay=false;
+    private boolean bIsPlaying=false;
+    private boolean bControlsActive=true;
+    private int RENDERER_COUNT = 300000;
+    private int minBufferMs =    250000;
+    private final int BUFFER_SEGMENT_SIZE = 64 * 1024;
+    private final int BUFFER_SEGMENT_COUNT = 256;
+    private String userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:40.0) Gecko/20100101 Firefox/40.0";
+    private String VIDEO_URI = "/video.mp4";
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_groupvideo);
-        messageToSend = (EditText) findViewById(R.id.messageEdit);
-        sendMessageButton = (Button) findViewById(R.id.chatSendButton);
+        setContentView(R.layout.video_player_layout);
+
+        // Hide the status bar.
+        View decorView = getWindow().getDecorView();
+        int uiOptions = View.SYSTEM_UI_FLAG_FULLSCREEN;
+        decorView.setSystemUiVisibility(uiOptions);
 
         // get groupName and senderPhoneNumber
         Intent i = getIntent();
@@ -50,10 +101,25 @@ public class GroupVideo extends AppCompatActivity {
         SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
         senderPhoneNum = pref.getString("phoneNum", "0000000000");
 
+        // AMQP stuff
         setupConnectionFactory();
         publishToAMQP();
-        setupPubButton();
         subscribe();
+
+        // Video Player Stuff
+        setContentView(R.layout.video_player_layout);
+        surfaceView = (SurfaceView) findViewById(R.id.sv_player);
+        mediaController = (LinearLayout) findViewById(R.id.lin_media_controller);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        initPlayer(0);
+        if(bAutoplay){
+            if(exoPlayer!=null){
+                exoPlayer.setPlayWhenReady(true);
+                bIsPlaying=true;
+                setProgress();
+            }
+        }
     }
 
     @Override
@@ -120,20 +186,6 @@ public class GroupVideo extends AppCompatActivity {
         publishThread.start();
     }
 
-    void setupPubButton() {
-        sendMessageButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View arg0) {
-                String messageText = messageToSend.getText().toString();
-                if (TextUtils.isEmpty(messageText)) {
-                    return;
-                }
-                publishMessage(messageToSend.getText().toString());
-                messageToSend.setText("");
-            }
-        });
-    }
-
     private BlockingDeque<Message> queue = new LinkedBlockingDeque<Message>();
     void publishMessage(String message) {
         try {
@@ -167,7 +219,25 @@ public class GroupVideo extends AppCompatActivity {
                         while (true) {
                             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
                             final Message message = (Message)SerializationUtils.deserialize(delivery.getBody());
+
                             displayMessage(message, 2);
+                            if (message.getMessage().contains("seek")) {
+                                exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
+                            }
+
+                            else if (message.getMessage().contains("play")) {
+                                if(!bIsPlaying){
+                                    exoPlayer.setPlayWhenReady(true);
+                                    bIsPlaying=true;
+                                    setProgress();
+                                }
+                            }
+                            else if (message.getMessage().contains("pause")) {
+                                if(bIsPlaying){
+                                    exoPlayer.setPlayWhenReady(false);
+                                    bIsPlaying=false;
+                                }
+                            }
                         }
                     } catch (InterruptedException e) {
                         break;
@@ -188,5 +258,160 @@ public class GroupVideo extends AppCompatActivity {
 
     public void displayMessage(Message message, int x) {
         System.out.println("xxx:" + x + "   " + message.getSender() + "->" + message.getReceiver() + "   " + message.getMessage() + "   " + message.getTimestamp());
+    }
+
+    // initialising media control
+    private void initMediaControls() {
+        initSurfaceView();
+        initSeekBar();
+        initTxtTime();
+        initBtnLike();
+        initBtnQuery();
+    }
+
+    private void initSurfaceView() {
+        surfaceView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                toggleMediaControls();
+            }
+        });
+    }
+
+    private void initSeekBar() {
+        seekPlayerProgress = (SeekBar) findViewById(R.id.mediacontroller_progress);
+        seekPlayerProgress.requestFocus();
+        seekPlayerProgress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) {
+                    // We're not interested in programmatically generated changes to the progress bar's position.
+                    return;
+                }
+                // set not interactive
+//                exoPlayer.seekTo(progress*1000);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+        seekPlayerProgress.setMax(0);
+        seekPlayerProgress.setMax((int) exoPlayer.getDuration()/1000);
+    }
+
+    private void initTxtTime() {
+        txtCurrentTime = (TextView) findViewById(R.id.time_current);
+        txtEndTime = (TextView) findViewById(R.id.player_end_time);
+    }
+
+    private void initBtnLike() {
+        btnLike = (ImageButton) findViewById(R.id.btnLike);
+        btnLike.requestFocus();
+        btnLike.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // handle like press
+                publishMessage("user:" + senderPhoneNum + ",video:" + VIDEO_URI
+                        + ",pos:" + exoPlayer.getCurrentPosition() + ",action:like,");
+            }
+        });
+    }
+
+    private void initBtnQuery() {
+        btnQuery = (ImageButton) findViewById(R.id.btnQuery);
+        btnQuery.requestFocus();
+        btnQuery.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // handle query press
+                publishMessage("user:" + senderPhoneNum + ",video:" + VIDEO_URI
+                        + ",pos:" + exoPlayer.getCurrentPosition() + ",action:query,");
+            }
+        });
+    }
+
+    private String stringForTime(int timeMs) {
+        mFormatBuilder = new StringBuilder();
+        mFormatter = new Formatter(mFormatBuilder, Locale.getDefault());
+        int totalSeconds =  timeMs / 1000;
+        int seconds = totalSeconds % 60;
+        int minutes = (totalSeconds / 60) % 60;
+        int hours   = totalSeconds / 3600;
+        mFormatBuilder.setLength(0);
+        if (hours > 0) {
+            return mFormatter.format("%d:%02d:%02d", hours, minutes, seconds).toString();
+        }
+        else {
+            return mFormatter.format("%02d:%02d", minutes, seconds).toString();
+        }
+    }
+
+    private void setProgress() {
+        seekPlayerProgress.setProgress(0);
+        seekPlayerProgress.setMax(0);
+        seekPlayerProgress.setMax((int) exoPlayer.getDuration()/1000);
+        handler = new Handler();
+        //Make sure Seekbar is updated only on UI thread
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (exoPlayer != null && bIsPlaying ) {
+                    seekPlayerProgress.setMax(0);
+                    seekPlayerProgress.setMax((int) exoPlayer.getDuration()/1000);
+                    int mCurrentPosition = (int) exoPlayer.getCurrentPosition() / 1000;
+                    seekPlayerProgress.setProgress(mCurrentPosition);
+                    txtCurrentTime.setText(stringForTime((int)exoPlayer.getCurrentPosition()));
+                    txtEndTime.setText(stringForTime((int)exoPlayer.getDuration()));
+                    handler.postDelayed(this, 1000);
+                }
+            }
+        });
+    }
+
+    private void toggleMediaControls() {
+        if(bControlsActive){
+            hideMediaController();
+            bControlsActive=false;
+        }
+        else {
+            showController();
+            bControlsActive=true;
+            setProgress();
+        }
+    }
+
+    private void showController() {
+        mediaController.setVisibility(View.VISIBLE);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    }
+
+    private void hideMediaController() {
+        mediaController.setVisibility(View.GONE);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    }
+
+    private void initPlayer(int position) {
+        Allocator allocator = new DefaultAllocator(minBufferMs);
+        DataSource dataSource = new DefaultUriDataSource(this, null, userAgent);
+        ExtractorSampleSource sampleSource = new ExtractorSampleSource(
+                Uri.fromFile(
+                        new File(getApplicationContext().getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) + VIDEO_URI)
+                ),
+                dataSource, allocator, BUFFER_SEGMENT_COUNT * BUFFER_SEGMENT_SIZE);
+
+        MediaCodecVideoTrackRenderer videoRenderer = new MediaCodecVideoTrackRenderer(this, sampleSource, MediaCodecSelector.DEFAULT,
+                MediaCodec.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+
+        MediaCodecAudioTrackRenderer audioRenderer = new MediaCodecAudioTrackRenderer(sampleSource, MediaCodecSelector.DEFAULT);
+        exoPlayer = ExoPlayer.Factory.newInstance(RENDERER_COUNT);
+        exoPlayer.prepare(videoRenderer, audioRenderer);
+        exoPlayer.sendMessage(videoRenderer, MediaCodecVideoTrackRenderer.MSG_SET_SURFACE, surfaceView.getHolder().getSurface());
+        exoPlayer.seekTo(position);
+        initMediaControls();
     }
 }
