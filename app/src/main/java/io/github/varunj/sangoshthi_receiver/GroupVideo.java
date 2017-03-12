@@ -221,21 +221,25 @@ public class GroupVideo extends AppCompatActivity {
                             final Message message = (Message)SerializationUtils.deserialize(delivery.getBody());
 
                             displayMessage(message, 2);
-                            if (message.getMessage().contains("seek")) {
-                                exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
-                            }
 
-                            else if (message.getMessage().contains("play")) {
-                                if(!bIsPlaying){
-                                    exoPlayer.setPlayWhenReady(true);
-                                    bIsPlaying=true;
-                                    setProgress();
+                            if (message.getReceiver().equals(receiverGroupName)) {
+                                if (message.getMessage().contains("seek")) {
+                                    exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
                                 }
-                            }
-                            else if (message.getMessage().contains("pause")) {
-                                if(bIsPlaying){
-                                    exoPlayer.setPlayWhenReady(false);
-                                    bIsPlaying=false;
+                                else if (message.getMessage().contains("play")) {
+                                    if(!bIsPlaying){
+                                        exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
+                                        exoPlayer.setPlayWhenReady(true);
+                                        bIsPlaying=true;
+                                        setProgress();
+                                    }
+                                }
+                                else if (message.getMessage().contains("pause")) {
+                                    if(bIsPlaying){
+                                        exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
+                                        exoPlayer.setPlayWhenReady(false);
+                                        bIsPlaying=false;
+                                    }
                                 }
                             }
                         }
