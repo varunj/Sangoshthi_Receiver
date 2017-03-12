@@ -58,8 +58,6 @@ import io.github.varunj.sangoshthi_broadcaster.Message;
 
 public class GroupVideo extends AppCompatActivity {
     private String receiverGroupName , senderPhoneNum;
-    private EditText messageToSend;
-    private Button sendMessageButton;
     private Message message1;
     Thread subscribeThread;
     Thread publishThread;
@@ -404,7 +402,7 @@ public class GroupVideo extends AppCompatActivity {
         DataSource dataSource = new DefaultUriDataSource(this, null, userAgent);
         ExtractorSampleSource sampleSource = new ExtractorSampleSource(
                 Uri.fromFile(
-                        new File(getApplicationContext().getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) + VIDEO_URI)
+                         new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), VIDEO_URI)
                 ),
                 dataSource, allocator, BUFFER_SEGMENT_COUNT * BUFFER_SEGMENT_SIZE);
 
