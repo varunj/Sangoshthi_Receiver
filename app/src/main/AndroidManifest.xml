@@ -30,6 +30,9 @@
         <activity android:name=".AddVideoActivity">
         </activity>
 
+        <activity android:name=".VIewGalleryActivity">
+        </activity>
+
         <activity
             android:name=".ListSessionsActivity"
             android:label="@string/app_name">

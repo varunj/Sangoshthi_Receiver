@@ -42,6 +42,8 @@ public class PickerActivity extends AppCompatActivity {
         final Button button_picker_gallery = (Button) findViewById(R.id.picker_gallery);
         button_picker_gallery.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
+                Intent intent = new Intent(getApplicationContext(), VIewGalleryActivity.class);
+                startActivity(intent);
             }
         });
 

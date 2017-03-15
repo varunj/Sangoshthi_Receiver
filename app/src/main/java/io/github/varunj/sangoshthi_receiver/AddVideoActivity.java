@@ -25,7 +25,6 @@ public class AddVideoActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_picker);
         dispatchTakeVideoIntent();
     }
 
@@ -58,7 +57,7 @@ public class AddVideoActivity extends AppCompatActivity {
     String mCurrentPhotoPath;
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
+        String imageFileName = "MP4_" + timeStamp + "_";
         File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS + "/Sangoshthi");
         File image = File.createTempFile(
                 imageFileName,  /* prefix */
