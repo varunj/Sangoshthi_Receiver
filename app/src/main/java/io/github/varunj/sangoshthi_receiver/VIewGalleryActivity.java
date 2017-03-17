@@ -12,6 +12,7 @@ package io.github.varunj.sangoshthi_receiver;
         import android.util.Log;
         import android.view.View;
         import android.widget.Button;
+        import android.widget.Toast;
 
         import java.io.File;
         import java.util.ArrayList;
@@ -25,12 +26,23 @@ package io.github.varunj.sangoshthi_receiver;
 
 public class VIewGalleryActivity extends AppCompatActivity {
 
-
+    private static int REQUEST_VIEW_GALLERY = 2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         openGallery();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        if (requestCode == REQUEST_VIEW_GALLERY && resultCode == RESULT_OK) {
+            Toast.makeText(this, "Just Viewed Gallery", Toast.LENGTH_SHORT).show();
+            finish();
+        }
+        else if (requestCode == REQUEST_VIEW_GALLERY && resultCode == RESULT_CANCELED) {
+            finish();
+        }
     }
 
     private void openGallery() {
@@ -58,8 +70,7 @@ public class VIewGalleryActivity extends AppCompatActivity {
         }
 
         Intent intent = new Intent(Intent.ACTION_VIEW, mediaUri);
-        startActivity(intent);
-
+        startActivityForResult(intent, REQUEST_VIEW_GALLERY);
 
     }
 

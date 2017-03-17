@@ -52,13 +52,16 @@ public class AddPhotoActivity extends AppCompatActivity {
             Toast.makeText(this, "Photo Added", Toast.LENGTH_SHORT).show();
             finish();
         }
+        else if (requestCode == REQUEST_TAKE_PHOTO && resultCode == RESULT_CANCELED) {
+            finish();
+        }
     }
 
     String mCurrentPhotoPath;
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS + "/Sangoshthi");
+        String imageFileName = timeStamp + "_";
+        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS + "/Sangoshthi_Receiver");
         File image = File.createTempFile(
                 imageFileName,  /* prefix */
                 ".jpg",         /* suffix */

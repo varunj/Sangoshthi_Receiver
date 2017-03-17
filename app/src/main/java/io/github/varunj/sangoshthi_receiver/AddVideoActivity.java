@@ -52,13 +52,16 @@ public class AddVideoActivity extends AppCompatActivity {
             Toast.makeText(this, "Video Added", Toast.LENGTH_SHORT).show();
             finish();
         }
+        else if (requestCode == REQUEST_VIDEO_CAPTURE && resultCode == RESULT_CANCELED) {
+            finish();
+        }
     }
 
     String mCurrentPhotoPath;
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "MP4_" + timeStamp + "_";
-        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS + "/Sangoshthi");
+        String imageFileName = timeStamp + "_";
+        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS + "/Sangoshthi_Receiver");
         File image = File.createTempFile(
                 imageFileName,  /* prefix */
                 ".mp4",         /* suffix */
