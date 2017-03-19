@@ -81,7 +81,7 @@ public class GroupVideoActivity extends AppCompatActivity {
     private final int BUFFER_SEGMENT_SIZE = 64 * 1024;
     private final int BUFFER_SEGMENT_COUNT = 256;
     private String userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:40.0) Gecko/20100101 Firefox/40.0";
-    private String VIDEO_URI = "/video.mp4";
+    private String VIDEO_URI = "/";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -96,6 +96,7 @@ public class GroupVideoActivity extends AppCompatActivity {
         // get groupName and senderPhoneNumber
         Intent i = getIntent();
         receiverGroupName = i.getStringExtra("groupName");
+        VIDEO_URI = "/" + i.getStringExtra("videoname");
         SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
         senderPhoneNum = pref.getString("phoneNum", "0000000000");
 
