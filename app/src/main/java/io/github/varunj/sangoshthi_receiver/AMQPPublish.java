@@ -19,7 +19,7 @@ public class AMQPPublish {
 
     public static Thread publishThread;
     public static JSONObject messagePresent;
-    public static String QUEUE_NAME = "asha_to_server_likeQuery";
+    public static String QUEUE_NAME = "asha_to_server";
     public static BlockingDeque<JSONObject> queue = new LinkedBlockingDeque<>();
 
     public static ConnectionFactory factory = new ConnectionFactory();
@@ -52,7 +52,7 @@ public class AMQPPublish {
                                 // xxx: read http://www.rabbitmq.com/api-guide.html. Set QueueName=RoutingKey to send message to only 1 queue
                                 channel.exchangeDeclare("defaultExchangeName", "direct", true);
                                 // xxx: first field true?
-                                channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+                                channel.queueDeclare(QUEUE_NAME, false, false, false, null);
                                 channel.queueBind(QUEUE_NAME, "defaultExchangeName", QUEUE_NAME);
                                 channel.basicPublish("defaultExchangeName", QUEUE_NAME, null, messagePresent.toString().getBytes());
                                 displayMessage(messagePresent);
@@ -83,9 +83,9 @@ public class AMQPPublish {
 
     public static void displayMessage(JSONObject message) {
         try {
-            System.out.println("xxx:" + " " + message.getString("objective") + ":" + message.getString("show_name") + " " +
-                    message.getString("broadcaster") + "->" + message.getString("list_of_asha") +
-                    " " + message.getString("video_name") + "@" + message.getString("time_of_airing") + " " + message.getString("timestamp"));
+            System.out.println("xxx:" + " " + message.getString("objective") + ": " + message.getString("show_name") + " " +
+                    message.getString("sender") + ":  " + message.get("location") +
+                    " " + message.getString("timestamp"));
         } catch (JSONException e) {
             e.printStackTrace();
         }

@@ -1,5 +1,7 @@
 package io.github.varunj.sangoshthi_receiver;
 
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.media.MediaCodec;
@@ -12,6 +14,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
@@ -49,6 +52,7 @@ import java.util.Locale;
 public class GroupVideoActivity extends AppCompatActivity {
     private String showName, senderPhoneNum;
     Thread subscribeThread;
+    Thread subscribeNormalThread;
     private SurfaceView surfaceView;
     private SeekBar seekPlayerProgress;
     private TextView txtCurrentTime;
@@ -92,6 +96,7 @@ public class GroupVideoActivity extends AppCompatActivity {
         AMQPPublish.publishToAMQP();
         setupConnectionFactory();
         subscribe();
+        subscribeNormal();
 
         // Video Player Stuff
         setContentView(R.layout.video_player_layout);
@@ -112,21 +117,43 @@ public class GroupVideoActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        AMQPPublish.publishThread.interrupt();
-        subscribeThread.interrupt();
+        if (AMQPPublish.publishThread != null)
+            AMQPPublish.publishThread.interrupt();
+        if (subscribeThread != null)
+            subscribeThread.interrupt();
+        if (subscribeNormalThread != null)
+            subscribeNormalThread.interrupt();
+    }
+
+    @Override
+    public void onBackPressed() {
+        new AlertDialog.Builder(this)
+                .setTitle("Closing Activity")
+                .setMessage("Sure you don't want to continue?")
+                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        finish();
+                    }
+                })
+                .setNegativeButton("No", null)
+                .show();
+        if (AMQPPublish.publishThread != null)
+            AMQPPublish.publishThread.interrupt();
+        if (subscribeThread != null)
+            subscribeThread.interrupt();
+        if (subscribeNormalThread != null)
+            subscribeNormalThread.interrupt();
     }
 
     void publishMessage(Long location, String message) {
         try {
             final JSONObject jsonObject = new JSONObject();
-            //primary key: <broadcaster, show_name>
-            jsonObject.put("objective", "likeQuery");
+            jsonObject.put("objective", message);
             jsonObject.put("sender", senderPhoneNum);
             jsonObject.put("timestamp", DateFormat.getDateTimeInstance().format(new Date()));
-            jsonObject.put("message", message);
             jsonObject.put("show_name", showName);
             jsonObject.put("location", location);
-            jsonObject.put("likeQuery", message);
             AMQPPublish.queue.putLast(jsonObject);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -157,19 +184,15 @@ public class GroupVideoActivity extends AppCompatActivity {
                     try {
                         Connection connection = factory.newConnection();
                         Channel channel = connection.createChannel();
-
                         // xxx: read http://www.rabbitmq.com/tutorials/tutorial-three-python.html, http://stackoverflow.com/questions/10620976/rabbitmq-amqp-single-queue-multiple-consumers-for-same-message
                         AMQP.Queue.DeclareOk queue = channel.queueDeclare();
                         channel.queueBind(queue.getQueue(), "amq.fanout", showName);
                         QueueingConsumer consumer = new QueueingConsumer(channel);
                         channel.basicConsume(queue.getQueue(), true, consumer);
-
                         while (true) {
                             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
                             final JSONObject message = new JSONObject(new String(delivery.getBody()));
-
                             displayMessage(message);
-
                             if (message.getString("show_name").equals(showName)) {
                                 if (message.getString("message").contains("seek")) {
                                     exoPlayer.seekTo(Integer.parseInt(message.getString("message").split(":")[1]));
@@ -189,6 +212,56 @@ public class GroupVideoActivity extends AppCompatActivity {
                                         bIsPlaying=false;
                                     }
                                 }
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        break;
+                    } catch (Exception e1) {
+                        e1.printStackTrace();
+                        try {
+                            Thread.sleep(4000); //sleep and then try again
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        subscribeThread.start();
+    }
+
+    void subscribeNormal() {
+        subscribeThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(true) {
+                    try {
+                        Connection connection = factory.newConnection();
+                        Channel channel = connection.createChannel();
+                        // xxx: read http://www.rabbitmq.com/tutorials/tutorial-three-python.html, http://stackoverflow.com/questions/10620976/rabbitmq-amqp-single-queue-multiple-consumers-for-same-message
+                        channel.queueDeclare("server_to_broadcaster", false, false, false, null);
+                        QueueingConsumer consumer = new QueueingConsumer(channel);
+                        channel.basicConsume("server_to_asha", true, consumer);
+                        while (true) {
+                            QueueingConsumer.Delivery delivery = consumer.nextDelivery();
+                            final JSONObject message = new JSONObject(new String(delivery.getBody()));
+                            try {
+                                System.out.println("xxx:" + " " + message.getString("objective") + ":" +
+                                        message.getString("sender") + "->" + message.getString("location") +
+                                        " " + message.getString("show_name"));
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+
+                            if (message.getString("objective").equals("control_show_flush")) {
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        final ImageButton btnQuery = (ImageButton) findViewById(R.id.btnQuery);
+                                        btnQuery.setEnabled(true);
+                                    }
+                                });
+
                             }
                         }
                     } catch (InterruptedException e) {
@@ -287,6 +360,7 @@ public class GroupVideoActivity extends AppCompatActivity {
             public void onClick(View view) {
                 // handle query press
                 publishMessage(exoPlayer.getCurrentPosition(), "query");
+                btnQuery.setEnabled(false);
             }
         });
     }
