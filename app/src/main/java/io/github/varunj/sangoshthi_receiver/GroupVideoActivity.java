@@ -9,12 +9,9 @@ import android.os.Environment;
 import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.support.v7.app.AppCompatActivity;
-import android.text.TextUtils;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
@@ -36,32 +33,22 @@ import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.QueueingConsumer;
 
 import org.apache.commons.lang3.SerializationUtils;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.Formatter;
 import java.util.Locale;
-import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.LinkedBlockingDeque;
-
-import io.github.varunj.sangoshthi_broadcaster.Message;
 
 /**
  * Created by Varun on 04-03-2017.
  */
 
 public class GroupVideoActivity extends AppCompatActivity {
-    private String receiverGroupName , senderPhoneNum;
-    private Message message1;
+    private String showName, senderPhoneNum;
     Thread subscribeThread;
-    Thread publishThread;
-
     private SurfaceView surfaceView;
     private SeekBar seekPlayerProgress;
     private TextView txtCurrentTime;
@@ -95,14 +82,15 @@ public class GroupVideoActivity extends AppCompatActivity {
 
         // get groupName and senderPhoneNumber
         Intent i = getIntent();
-        receiverGroupName = i.getStringExtra("groupName");
+        showName = i.getStringExtra("showName");
         VIDEO_URI = "/" + i.getStringExtra("videoname");
         SharedPreferences pref = PreferenceManager.getDefaultSharedPreferences(this);
         senderPhoneNum = pref.getString("phoneNum", "0000000000");
 
         // AMQP stuff
+        AMQPPublish.setupConnectionFactory();
+        AMQPPublish.publishToAMQP();
         setupConnectionFactory();
-        publishToAMQP();
         subscribe();
 
         // Video Player Stuff
@@ -124,12 +112,31 @@ public class GroupVideoActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        publishThread.interrupt();
+        AMQPPublish.publishThread.interrupt();
         subscribeThread.interrupt();
     }
 
-    ConnectionFactory factory = new ConnectionFactory();
-    private void setupConnectionFactory() {
+    void publishMessage(Long location, String message) {
+        try {
+            final JSONObject jsonObject = new JSONObject();
+            //primary key: <broadcaster, show_name>
+            jsonObject.put("objective", "likeQuery");
+            jsonObject.put("sender", senderPhoneNum);
+            jsonObject.put("timestamp", DateFormat.getDateTimeInstance().format(new Date()));
+            jsonObject.put("message", message);
+            jsonObject.put("show_name", showName);
+            jsonObject.put("location", location);
+            jsonObject.put("likeQuery", message);
+            AMQPPublish.queue.putLast(jsonObject);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static ConnectionFactory factory = new ConnectionFactory();
+    public static  void setupConnectionFactory() {
         try {
             factory.setUsername(StarterActivity.SERVER_USERNAME);
             factory.setPassword(StarterActivity.SERVER_PASS);
@@ -142,64 +149,6 @@ public class GroupVideoActivity extends AppCompatActivity {
             e.printStackTrace();
         }
     }
-
-    public void publishToAMQP() {
-        publishThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while(true) {
-                    try {
-                        Connection connection = factory.newConnection();
-                        Channel channel = connection.createChannel();
-                        channel.confirmSelect();
-                        while (true) {
-                            message1 = queue.takeFirst();
-                            try {
-                                // xxx: read http://www.rabbitmq.com/api-guide.html. Set QueueName=RoutingKey to send message to only 1 queue
-                                channel.exchangeDeclare("defaultExchangeName", "direct", true);
-                                channel.queueDeclare(message1.getReceiver(), true, false, false, null);
-                                channel.queueBind(message1.getReceiver(), "defaultExchangeName", message1.getReceiver());
-                                // send message1
-                                channel.basicPublish("defaultExchangeName", message1.getReceiver(), null, SerializationUtils.serialize(message1));
-
-                                displayMessage(message1, 1);
-                                channel.waitForConfirmsOrDie();
-                            } catch (Exception e) {
-                                queue.putFirst(message1);
-                                throw e;
-                            }
-                        }
-                    } catch (InterruptedException e) {
-                        break;
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        try {
-                            Thread.sleep(5000); //sleep and then try again
-                        } catch (InterruptedException e1) {
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-        publishThread.start();
-    }
-
-    private BlockingDeque<Message> queue = new LinkedBlockingDeque<Message>();
-    void publishMessage(String message) {
-        try {
-            Message chatMessage = new Message();
-            chatMessage.setMessage(message);
-            chatMessage.setTimestamp(DateFormat.getDateTimeInstance().format(new Date()));
-            chatMessage.setSender(senderPhoneNum);
-            // xxx: automate this
-            chatMessage.setReciever("LikeQueryButton");
-            queue.putLast(chatMessage);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
     void subscribe() {
         subscribeThread = new Thread(new Runnable() {
             @Override
@@ -211,31 +160,31 @@ public class GroupVideoActivity extends AppCompatActivity {
 
                         // xxx: read http://www.rabbitmq.com/tutorials/tutorial-three-python.html, http://stackoverflow.com/questions/10620976/rabbitmq-amqp-single-queue-multiple-consumers-for-same-message
                         AMQP.Queue.DeclareOk queue = channel.queueDeclare();
-                        channel.queueBind(queue.getQueue(), "amq.fanout", receiverGroupName);
+                        channel.queueBind(queue.getQueue(), "amq.fanout", showName);
                         QueueingConsumer consumer = new QueueingConsumer(channel);
                         channel.basicConsume(queue.getQueue(), true, consumer);
 
                         while (true) {
                             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
-                            final Message message = (Message)SerializationUtils.deserialize(delivery.getBody());
+                            final JSONObject message = new JSONObject(new String(delivery.getBody()));
 
-                            displayMessage(message, 2);
+                            displayMessage(message);
 
-                            if (message.getReceiver().equals(receiverGroupName)) {
-                                if (message.getMessage().contains("seek")) {
-                                    exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
+                            if (message.getString("show_name").equals(showName)) {
+                                if (message.getString("message").contains("seek")) {
+                                    exoPlayer.seekTo(Integer.parseInt(message.getString("message").split(":")[1]));
                                 }
-                                else if (message.getMessage().contains("play")) {
+                                else if (message.getString("message").contains("play")) {
                                     if(!bIsPlaying){
-                                        exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
+                                        exoPlayer.seekTo(Integer.parseInt(message.getString("message").split(":")[1]));
                                         exoPlayer.setPlayWhenReady(true);
                                         bIsPlaying=true;
                                         setProgress();
                                     }
                                 }
-                                else if (message.getMessage().contains("pause")) {
+                                else if (message.getString("message").contains("pause")) {
                                     if(bIsPlaying){
-                                        exoPlayer.seekTo(Integer.parseInt(message.getMessage().split(":")[1]));
+                                        exoPlayer.seekTo(Integer.parseInt(message.getString("message").split(":")[1]));
                                         exoPlayer.setPlayWhenReady(false);
                                         bIsPlaying=false;
                                     }
@@ -259,8 +208,14 @@ public class GroupVideoActivity extends AppCompatActivity {
         subscribeThread.start();
     }
 
-    public void displayMessage(Message message, int x) {
-        System.out.println("xxx:" + x + "   " + message.getSender() + "->" + message.getReceiver() + "   " + message.getMessage() + "   " + message.getTimestamp());
+    public static void displayMessage(JSONObject message) {
+        try {
+            System.out.println("xxx:" + " " + message.getString("objective") + ":" +
+                    message.getString("broadcaster") + "->" + message.getString("show_name") +
+                    " " + message.getString("message") + "@" + message.getString("timestamp"));
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
     }
 
     // initialising media control
@@ -319,8 +274,7 @@ public class GroupVideoActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 // handle like press
-                publishMessage("user:" + senderPhoneNum + ",video:" + VIDEO_URI
-                        + ",pos:" + exoPlayer.getCurrentPosition() + ",action:like,");
+                publishMessage(exoPlayer.getCurrentPosition(), "like");
             }
         });
     }
@@ -332,8 +286,7 @@ public class GroupVideoActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 // handle query press
-                publishMessage("user:" + senderPhoneNum + ",video:" + VIDEO_URI
-                        + ",pos:" + exoPlayer.getCurrentPosition() + ",action:query,");
+                publishMessage(exoPlayer.getCurrentPosition(), "query");
             }
         });
     }

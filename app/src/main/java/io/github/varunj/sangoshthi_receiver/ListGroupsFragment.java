@@ -41,7 +41,7 @@ public class ListGroupsFragment extends Fragment {
             @Override
             public void onItemClick(AdapterView<?> arg0, View view, int arg2, long arg3) {
                 Intent i = new Intent(getActivity(), GroupVideoActivity.class);
-                i.putExtra("groupName", ((TextView) view.findViewById(R.id.showname)).getText().toString());
+                i.putExtra("showName", ((TextView) view.findViewById(R.id.showname)).getText().toString());
                 i.putExtra("timeofair", ((TextView) view.findViewById(R.id.timeofair)).getText().toString());
                 i.putExtra("videoname", ((TextView) view.findViewById(R.id.videoname)).getText().toString());
                 i.putExtra("Broadcaster", ((TextView) view.findViewById(R.id.broadcaster)).getText().toString());
