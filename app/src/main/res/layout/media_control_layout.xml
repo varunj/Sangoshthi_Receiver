@@ -19,14 +19,16 @@ android:id="@+id/lin_media_controller">
         android:layout_height="wrap_content"
         android:id="@+id/btnLike"
         android:layout_marginRight="60dp"
-        android:src="@drawable/btnlike"/>
+        android:src="@drawable/btnlike"
+        android:background="@null"/>
 
     <ImageButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:id="@+id/btnQuery"
         android:layout_marginLeft="60dp"
-        android:src="@drawable/btnquery"/>
+        android:src="@drawable/btnquery"
+        android:background="@null" />
 
 
 </LinearLayout>

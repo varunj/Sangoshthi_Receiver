@@ -192,7 +192,7 @@ public class GroupVideoActivity extends AppCompatActivity {
                         while (true) {
                             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
                             final JSONObject message = new JSONObject(new String(delivery.getBody()));
-                            displayMessage(message);
+                            System.out.println("xxx: " + message.toString());
                             if (message.getString("show_name").equals(showName)) {
                                 if (message.getString("message").contains("seek")) {
                                     exoPlayer.seekTo(Integer.parseInt(message.getString("message").split(":")[1]));
@@ -246,19 +246,14 @@ public class GroupVideoActivity extends AppCompatActivity {
                         while (true) {
                             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
                             final JSONObject message = new JSONObject(new String(delivery.getBody()));
-                            try {
-                                System.out.println("xxx:" + " " + message.getString("objective") + ":" +
-                                        message.getString("sender") + "->" + message.getString("location") +
-                                        " " + message.getString("show_name"));
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            }
+                            System.out.println("xxx: " + message.toString());
 
                             if (message.getString("objective").equals("control_show_flush")) {
                                 runOnUiThread(new Runnable() {
                                     public void run() {
                                         final ImageButton btnQuery = (ImageButton) findViewById(R.id.btnQuery);
                                         btnQuery.setEnabled(true);
+                                        btnQuery.setImageResource(R.drawable.btnquery);
                                     }
                                 });
 
@@ -279,16 +274,6 @@ public class GroupVideoActivity extends AppCompatActivity {
             }
         });
         subscribeThread.start();
-    }
-
-    public static void displayMessage(JSONObject message) {
-        try {
-            System.out.println("xxx:" + " " + message.getString("objective") + ":" +
-                    message.getString("broadcaster") + "->" + message.getString("show_name") +
-                    " " + message.getString("message") + "@" + message.getString("timestamp"));
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
     }
 
     // initialising media control
@@ -361,6 +346,7 @@ public class GroupVideoActivity extends AppCompatActivity {
                 // handle query press
                 publishMessage(exoPlayer.getCurrentPosition(), "query");
                 btnQuery.setEnabled(false);
+                btnQuery.setImageResource(R.drawable.btnquerydisable);
             }
         });
     }
